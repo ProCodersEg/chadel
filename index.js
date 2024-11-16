@@ -1,6 +1,6 @@
 const express = require('express');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, getDocs, doc, deleteDoc, getDoc } = require('firebase/firestore');
+const { getFirestore, collection, getDocs, doc, writeBatch, query, where } = require('firebase/firestore');
 
 // Firebase configuration (replace with your actual Firebase config)
 const firebaseConfig = {
@@ -25,11 +25,14 @@ expressApp.get('/', (req, res) => {
   res.send('Service is running!');
 });
 
-// Function to check and delete expired stories
+// Function to batch delete expired stories
 const cleanupExpiredStories = async () => {
-  console.log('Running cleanup...');
+  console.log('Running cleanup with batch delete...');
 
   try {
+    // Create a batch for writing (deleting in this case)
+    const batch = writeBatch(db);
+
     // Fetch all users from Firestore
     const usersSnapshot = await getDocs(collection(db, 'users'));
     console.log('Fetching users...');
@@ -39,36 +42,24 @@ const cleanupExpiredStories = async () => {
       const userId = userDoc.id;
       console.log(`Checking stories for user: ${userId}`);
 
-      // Check if the 'stories' subcollection exists by trying to get its documents
-      const storiesCollectionRef = collection(db, 'users', userId, 'stories');
-      const storiesSnapshot = await getDocs(storiesCollectionRef);
+      // Fetch stories where expired = true for the current user
+      const storiesSnapshot = await getDocs(
+        query(collection(db, 'users', userId, 'stories'), where('expired', '==', true))
+      );
+      console.log(`Found ${storiesSnapshot.size} expired stories for user: ${userId}`);
 
-      // If no stories exist for the user, skip this user
-      if (storiesSnapshot.empty) {
-        console.log(`No stories found for user: ${userId}. Skipping...`);
-        continue;
-      }
-
-      console.log(`Found ${storiesSnapshot.size} stories for user: ${userId}`);
-
-      // Loop through each story and check for expiration
-      for (const storyDoc of storiesSnapshot.docs) {
-        const storyData = storyDoc.data();
+      // Loop through each expired story and add it to the batch for deletion
+      storiesSnapshot.forEach((storyDoc) => {
         const storyId = storyDoc.id;
-        const storyEndDate = storyData.endDate; // 'endDate' is stored as a long timestamp (milliseconds)
-        
-        const currentTime = Date.now(); // Current time in milliseconds
-
-        // Check if the story is expired
-        if (storyEndDate <= currentTime) {
-          console.log(`Story expired: ${storyId}`);
-          await deleteDoc(doc(db, 'users', userId, 'stories', storyId)); // Delete the expired story
-          console.log(`Deleted expired story: ${storyId} for user: ${userId}`);
-        }
-      }
+        const storyRef = doc(db, 'users', userId, 'stories', storyId);
+        batch.delete(storyRef); // Add delete operation to the batch
+        console.log(`Adding expired story ${storyId} to batch for deletion.`);
+      });
     }
 
-    console.log('Cleanup completed successfully!');
+    // Commit the batch (delete all expired stories in one operation)
+    await batch.commit();
+    console.log('Batch delete completed successfully!');
   } catch (error) {
     console.error('Error during cleanup:', error);
   }
