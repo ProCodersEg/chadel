@@ -1,11 +1,11 @@
-// Import the necessary Firebase services from the modular SDK
-const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, getDocs, doc, deleteDoc } = require('firebase/firestore');
+const express = require('express');
+const firebase = require('firebase');
+require('firebase/firestore');
 const cron = require('node-cron');
 
-// Firebase Configuration (Replace with your Firebase configuration)
+// Initialize Firebase (replace with your Firebase config)
 const firebaseConfig = {
-  apiKey: "AIzaSyCs02APJC5xDrtrqu0LdoyIB8-EX8vAUrE",
+   apiKey: "AIzaSyCs02APJC5xDrtrqu0LdoyIB8-EX8vAUrE",
   authDomain: "g-play-clone.firebaseapp.com",
   projectId: "g-play-clone",
   storageBucket: "g-play-clone.firebasestorage.app",
@@ -13,57 +13,77 @@ const firebaseConfig = {
   appId: "1:923114501349:web:89c67d1657ea0f7d50100c"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase app
+firebase.initializeApp(firebaseConfig);
 
-// Initialize Firestore
-const db = getFirestore(app);
+// Get Firestore reference
+const db = firebase.firestore();
 
-// Function to clean up expired stories
-async function cleanupExpiredStories() {
-  const now = Date.now(); // Get the current timestamp in milliseconds
-  console.log('Starting cleanup process at:', new Date(now));
+// Initialize Express app
+const app = express();
+const port = 8080;
 
+// Function to check and delete expired stories
+const cleanupExpiredStories = async () => {
+  console.log('Running scheduled cleanup...');
   try {
-    // Get all users from Firestore
+    // Fetch all users from Firestore
+    const usersSnapshot = await db.collection('users').get();
     console.log('Fetching users...');
-    const usersCollection = await getDocs(collection(db, 'users'));
 
     // Loop through each user
-    for (const userDoc of usersCollection.docs) {
+    usersSnapshot.forEach(async (userDoc) => {
       const userId = userDoc.id;
       console.log(`Checking stories for user: ${userId}`);
 
-      const storiesCollectionRef = collection(db, 'users', userId, 'stories');
-
-      // Get all stories for this user
-      const storiesSnapshot = await getDocs(storiesCollectionRef);
+      // Fetch stories for the current user
+      const storiesSnapshot = await db.collection('users').doc(userId).collection('stories').get();
       console.log(`Found ${storiesSnapshot.size} stories for user: ${userId}`);
 
-      // Loop through each story and check if it is expired
-      for (const storyDoc of storiesSnapshot.docs) {
+      // Loop through each story and check for expiration
+      storiesSnapshot.forEach(async (storyDoc) => {
         const storyData = storyDoc.data();
+        const storyId = storyDoc.id;
+        const storyEndDate = storyData.endDate.toMillis(); // Assuming 'endDate' is a Firestore timestamp
+        
+        const currentTime = Date.now();
 
-        // Check if the story has an 'endDate' and if it's expired
-        if (storyData.endDate && storyData.endDate <= now) {
-          console.log(`Story expired: ${storyDoc.id}`);
-          
-          // Delete the expired story
-          await deleteDoc(doc(db, 'users', userId, 'stories', storyDoc.id));
-          console.log(`Deleted expired story: ${storyDoc.id} for user: ${userId}`);
+        // Check if the story is expired
+        if (storyEndDate <= currentTime) {
+          console.log(`Story expired: ${storyId}`);
+          await db.collection('users').doc(userId).collection('stories').doc(storyId).delete();
+          console.log(`Deleted expired story: ${storyId} for user: ${userId}`);
         }
-      }
-    }
+      });
+    });
 
     console.log('Cleanup completed successfully!');
   } catch (error) {
     console.error('Error during cleanup:', error);
   }
-}
+};
 
-
-// Schedule the cleanup task to run every 5 minutes
+// Run the cleanup every 5 minutes (Cron job)
 cron.schedule('*/5 * * * *', () => {
-  console.log('Running scheduled cleanup...');
   cleanupExpiredStories();
+});
+
+// Set up Express routes
+app.get('/', (req, res) => {
+  res.send('Firebase Cleanup Service Running');
+});
+
+app.get('/cleanup', async (req, res) => {
+  try {
+    console.log('Manual cleanup triggered...');
+    await cleanupExpiredStories();
+    res.send('Cleanup completed successfully!');
+  } catch (error) {
+    res.status(500).send('Error during cleanup: ' + error.message);
+  }
+});
+
+// Start the Express server
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
 });

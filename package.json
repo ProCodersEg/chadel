@@ -6,13 +6,14 @@
     "start": "node index.js"
   },
   "engines": {
-	  "node" :"20.x"
+    "node": "20.x"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "express": "^4.21.1",
     "firebase": "^11.0.2",
     "node-cron": "^3.0.3"
   }
