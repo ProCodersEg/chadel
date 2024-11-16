@@ -19,7 +19,7 @@ const db = getFirestore(app);
 
 // Initialize Express app
 const expressApp = express();
-const port = 3000;
+const port = 8080 || process.env.PORT;
 
 // Route to check if the service is running
 expressApp.get('/', (req, res) => {
@@ -27,7 +27,7 @@ expressApp.get('/', (req, res) => {
 });
 
 // Start Express server
-expressApp.listen(port, () => {
+expressApp.listen(8080||process.env.PORT, () => {
   console.log(`Server running on http://localhost:${port}`);
 });
 
