@@ -1,6 +1,6 @@
 const express = require('express');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, getDocs, doc, deleteDoc } = require('firebase/firestore');
+const { getFirestore, collection, getDocs, doc, deleteDoc, getDoc } = require('firebase/firestore');
 
 // Firebase configuration (replace with your actual Firebase config)
 const firebaseConfig = {
@@ -39,22 +39,30 @@ const cleanupExpiredStories = async () => {
       const userId = userDoc.id;
       console.log(`Checking stories for user: ${userId}`);
 
-      // Fetch stories for the current user
-      const storiesSnapshot = await getDocs(collection(db, 'users', userId, 'stories'));
+      // Check if the 'stories' subcollection exists by trying to get its documents
+      const storiesCollectionRef = collection(db, 'users', userId, 'stories');
+      const storiesSnapshot = await getDocs(storiesCollectionRef);
+
+      // If no stories exist for the user, skip this user
+      if (storiesSnapshot.empty) {
+        console.log(`No stories found for user: ${userId}. Skipping...`);
+        continue;
+      }
+
       console.log(`Found ${storiesSnapshot.size} stories for user: ${userId}`);
 
       // Loop through each story and check for expiration
       for (const storyDoc of storiesSnapshot.docs) {
         const storyData = storyDoc.data();
         const storyId = storyDoc.id;
-        const storyEndDate = storyData.endDate;  // Assuming 'endDate' is stored as a long (milliseconds)
+        const storyEndDate = storyData.endDate; // 'endDate' is stored as a long timestamp (milliseconds)
         
-        const currentTime = Date.now();
+        const currentTime = Date.now(); // Current time in milliseconds
 
         // Check if the story is expired
         if (storyEndDate <= currentTime) {
           console.log(`Story expired: ${storyId}`);
-          await deleteDoc(doc(db, 'users', userId, 'stories', storyId));
+          await deleteDoc(doc(db, 'users', userId, 'stories', storyId)); // Delete the expired story
           console.log(`Deleted expired story: ${storyId} for user: ${userId}`);
         }
       }
@@ -68,12 +76,9 @@ const cleanupExpiredStories = async () => {
 
 // Route to manually trigger cleanup
 expressApp.get('/cleanup', async (req, res) => {
-  try {
-    await cleanupExpiredStories();  // Run the cleanup function
-    res.send('Cleanup completed successfully!');
-  } catch (error) {
-    res.status(500).send('Error during cleanup: ' + error.message);
-  }
+  console.log('Manually triggering cleanup...');
+  await cleanupExpiredStories();
+  res.send('Cleanup process completed!');
 });
 
 // Start Express server
