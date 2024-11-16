@@ -1,5 +1,4 @@
 const express = require('express');
-const cron = require('node-cron');
 const { initializeApp } = require('firebase/app');
 const { getFirestore, collection, getDocs, doc, deleteDoc } = require('firebase/firestore');
 
@@ -26,15 +25,10 @@ expressApp.get('/', (req, res) => {
   res.send('Service is running!');
 });
 
-// Start Express server
-expressApp.listen(8080 || process.env.PORT, () => {
-  console.log(`Server running on http://localhost:${port}`);
-});
-
 // Function to check and delete expired stories
 const cleanupExpiredStories = async () => {
-  console.log('Running scheduled cleanup...');
-  
+  console.log('Running cleanup...');
+
   try {
     // Fetch all users from Firestore
     const usersSnapshot = await getDocs(collection(db, 'users'));
@@ -50,10 +44,10 @@ const cleanupExpiredStories = async () => {
       console.log(`Found ${storiesSnapshot.size} stories for user: ${userId}`);
 
       // Loop through each story and check for expiration
-      for (const storyDoc of storiesSnapshot.docs) {  // Use 'for...of' to handle async
+      for (const storyDoc of storiesSnapshot.docs) {
         const storyData = storyDoc.data();
         const storyId = storyDoc.id;
-        const storyEndDate = storyData.endDate; // Assuming 'endDate' is a long (in milliseconds)
+        const storyEndDate = storyData.endDate;  // Assuming 'endDate' is stored as a long (milliseconds)
         
         const currentTime = Date.now();
 
@@ -72,7 +66,17 @@ const cleanupExpiredStories = async () => {
   }
 };
 
-// Schedule cleanup to run every 5 minutes (Cron job)
-cron.schedule('*/5 * * * *', () => {
-  cleanupExpiredStories();
+// Route to manually trigger cleanup
+expressApp.get('/cleanup', async (req, res) => {
+  try {
+    await cleanupExpiredStories();  // Run the cleanup function
+    res.send('Cleanup completed successfully!');
+  } catch (error) {
+    res.status(500).send('Error during cleanup: ' + error.message);
+  }
+});
+
+// Start Express server
+expressApp.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
 });
