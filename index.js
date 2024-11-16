@@ -53,7 +53,7 @@ const cleanupExpiredStories = async () => {
       for (const storyDoc of storiesSnapshot.docs) {  // Use 'for...of' to handle async
         const storyData = storyDoc.data();
         const storyId = storyDoc.id;
-        const storyEndDate = storyData.endDate.seconds * 1000; // Assuming 'endDate' is a Firestore timestamp
+        const storyEndDate = storyData.endDate; // Assuming 'endDate' is a long (in milliseconds)
         
         const currentTime = Date.now();
 
