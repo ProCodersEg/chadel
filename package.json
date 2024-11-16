@@ -7,7 +7,7 @@
   },
   "engines": {
 	  "node" :"v22.11.0",
-  }
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
