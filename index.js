@@ -27,7 +27,7 @@ expressApp.get('/', (req, res) => {
 });
 
 // Start Express server
-expressApp.listen(8080||process.env.PORT, () => {
+expressApp.listen(8080 || process.env.PORT, () => {
   console.log(`Server running on http://localhost:${port}`);
 });
 
@@ -50,7 +50,7 @@ const cleanupExpiredStories = async () => {
       console.log(`Found ${storiesSnapshot.size} stories for user: ${userId}`);
 
       // Loop through each story and check for expiration
-      storiesSnapshot.forEach(async (storyDoc) => {
+      for (const storyDoc of storiesSnapshot.docs) {  // Use 'for...of' to handle async
         const storyData = storyDoc.data();
         const storyId = storyDoc.id;
         const storyEndDate = storyData.endDate.seconds * 1000; // Assuming 'endDate' is a Firestore timestamp
@@ -63,7 +63,7 @@ const cleanupExpiredStories = async () => {
           await deleteDoc(doc(db, 'users', userId, 'stories', storyId));
           console.log(`Deleted expired story: ${storyId} for user: ${userId}`);
         }
-      });
+      }
     }
 
     console.log('Cleanup completed successfully!');
